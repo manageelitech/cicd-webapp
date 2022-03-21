@@ -1,0 +1,24 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region us-east-2)
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building Docker test image...
+      - docker build -t cicd-docker:develop -f Dockerfile.dev .
+      - docker run -e CI=true cicd-docker:develop npm run test
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t cicd-docker:latest .
+      - docker tag cicd-docker:latest 435848254756.dkr.ecr.us-east-2.amazonaws.com/cicd-docker:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker push 435848254756.dkr.ecr.us-east-2.amazonaws.com/cicd-docker:latest
