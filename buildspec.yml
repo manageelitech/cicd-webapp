@@ -10,10 +10,6 @@ phases:
   build:
     commands:
       - echo Build started on `date`
-      - echo Building Docker test image...
-      - docker build -t cicd-docker:develop -f Dockerfile.dev .
-      - docker run -e CI=true cicd-docker:develop npm run test
-      - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t cicd-docker:latest .
       - docker tag cicd-docker:latest 435848254756.dkr.ecr.us-east-2.amazonaws.com/cicd-docker:latest
