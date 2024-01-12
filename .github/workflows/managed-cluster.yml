@@ -1,0 +1,129 @@
+name: create_managed_kubernetes_cluster
+
+# Controls when the workflow will run
+on:
+
+  # branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
+
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      cluster-name:
+        description: "K8S Cluster Name eg. rsc-superset-{dev,test,uat,prod}"
+        required: true
+      region:
+        description: 'Region of Cluster - us'
+        required: true
+        default: 'us'
+      env:
+        description: 'Provide test here'
+        required: true
+      site:
+        description: 'kc or stl'
+        required: true
+      #project-id:
+        #description: 'Project Id'
+        #required: true
+      #subproject-id:
+        #description: 'SubProject Id'
+        #required: true
+      control-plane-nodes:
+        description: 'Control Plane node - default is 3'
+        required: true
+      node_pool_nodes:
+        description: 'Node_pool_worker_number'
+        required: true
+      tier:
+        description: 'Web, Application, Kubernetes'
+        required: true
+      node_pool_node_specs:
+        description: 'node spec default = small.c6.m10'
+        default: 'small.c6.m10'
+        required: false
+#         description: "Mounting Extra Volumes to all the nodes in the cluster"
+#       nodes-volume-amount:
+#         required: true
+#       workers-ceph-volume-amount:
+#         description: "Mounting Ceph Volumes to Worker nodes in the cluster"
+#         required: true 
+
+  # Allow workflow to be triggered via API
+  repository_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  terraform-create-vm:
+    # runs-on: [enterprise, linux, ephemeral]
+    # container: artifacts-scm.dstcorp.net/docker-repos/pipeline/jq:
+    runs-on:  [enterprise, linux, ephemeral]
+    container: artifactory.ssnc.dev/docker-repos/hashicorp/terraform:latest
+    steps:
+      - uses: actions/checkout@v2
+
+    #  -var='cloud_api_key=${{ secrets.SSC_CLOUD_API_KEY }}' \
+      - name: Terraform Init and Plan
+        run: |
+          export AWS_S3_ENDPOINT="http://wdc-ecs-01-dtn.dstcorp.net:9020"
+          export AWS_ACCESS_KEY_ID="retirement-services-admin"
+          export AWS_SECRET_ACCESS_KEY="hgpxMYoVW2UzRiVIqZpD4GecI/+1+P/aO0tQloQu"
+          export region=${{ github.event.inputs.region }}
+          export datacenter=${{ github.event.inputs.site }}
+          export env=${{ github.event.inputs.env }}
+          export instance_name=${{ github.event.inputs.cluster-name }}
+          cat /etc/os-release
+          apk add gettext
+          ls -la
+          cd projects/create-superset-managed-k8cluster
+          envsubst '${region},${datacenter},${env},${instance_name}' < providers-template > providers.tf
+          echo "printing out providers.tf"
+          cat providers.tf
+          echo "end printing providers.tf"
+      
+
+          terraform init -upgrade
+          terraform plan \
+          -var='cloud_api_key=${{ secrets.SSC_CLOUD_API_KEY }}' \
+          -var='instance_name=${{ github.event.inputs.cluster-name }}' \
+          -var='project_id=project-24e567c7-ef20-4ab4-884a-16e674144086' \
+          -var='subproject_id=subproject-ab7fc106-09fe-4a9f-8304-de04f2f3b5df' \
+          -var='control-plane-node-count=${{ github.event.inputs.control-plane-nodes }}' \
+          -var='node-pool-node-count=${{ github.event.inputs.node_pool_nodes }}' \
+          -var='env=${{ github.event.inputs.env }}' \
+          -var='datacenter=${{ github.event.inputs.site }}' \
+          -var='tier=${{ github.event.inputs.tier }}' \
+          -var='node-specs=${{ github.event.inputs.node_pool_node_specs }}' \
+          -var='region=${{ github.event.inputs.region }}'
+
+
+      - name: Terraform Apply
+        run: |
+          export AWS_S3_ENDPOINT="http://wdc-ecs-01-dtn.dstcorp.net:9020"
+          export AWS_ACCESS_KEY_ID="retirement-services-admin"
+          export AWS_SECRET_ACCESS_KEY="hgpxMYoVW2UzRiVIqZpD4GecI/+1+P/aO0tQloQu"
+          export region=${{ github.event.inputs.region }}
+          export datacenter=${{ github.event.inputs.site }}
+          export env=${{ github.event.inputs.env }}
+          export instance_name=${{ github.event.inputs.cluster-name }}
+          apk add gettext
+          cd projects/create-superset-managed-k8cluster
+          envsubst '${region},${datacenter},${env},${instance_name}' < providers-template > providers.tf
+
+          export TIER=${{ github.event.inputs.tier }}
+          echo 'tier=${TIER}'
+
+          terraform apply -auto-approve \
+          -var='cloud_api_key=${{ secrets.SSC_CLOUD_API_KEY }}' \
+          -var='instance_name=${{ github.event.inputs.cluster-name }}' \
+          -var='project_id=project-24e567c7-ef20-4ab4-884a-16e674144086' \
+          -var='subproject_id=subproject-ab7fc106-09fe-4a9f-8304-de04f2f3b5df' \
+          -var='control-plane-node-count=${{ github.event.inputs.control-plane-nodes }}' \
+          -var='node-pool-node-count=${{ github.event.inputs.node_pool_nodes }}' \
+          -var='env=${{ github.event.inputs.env }}' \
+          -var='datacenter=${{ github.event.inputs.site }}' \
+          -var='tier=${{ github.event.inputs.tier }}' \
+          -var='node-specs=${{ github.event.inputs.node_pool_node_specs }}' \
+          -var='region=${{ github.event.inputs.region }}'
+
